@@ -9,30 +9,55 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('🔍 Check Environment') {
             steps {
-                checkout scm
+                echo "🛠 Checking environment variables..."
+                sh 'echo \"SF_USERNAME=$SF_USERNAME\"'
+                sh 'echo \"SF_CLIENT_ID=$SF_CLIENT_ID\"'
+                sh 'ls -la $SF_KEY_FILE || echo \"❌ Key file not found\"'
             }
         }
 
-        stage('Authenticate') {
+         stage('🔐 Authenticate with Salesforce') {
             steps {
-                withCredentials([file(credentialsId: 'SF_JWT_KEY', variable: 'JWT_KEY_FILE')]) {
-                    sh """
-                    sfdx auth:jwt:grant \
-                        --client-id $SF_CLIENT_ID \
-                        --jwt-key-file $JWT_KEY_FILE \
-                        --username $SF_USERNAME \
-                        --instance-url $SF_INSTANCE_URL
-                    """
-                }
+                echo "🔑 Authenticating with Salesforce org..."
+                sh '''
+                sfdx auth:jwt:grant \
+                  --client-id $SF_CLIENT_ID \
+                  --jwt-key-file $SF_KEY_FILE \
+                  --username $SF_USERNAME \
+                  --instance-url $SF_INSTANCE \
+                  --set-default-dev-hub || {
+                      echo "❌ Authentication Failed"
+                      exit 1
+                  }
+                '''
+                echo "✅ Successfully authenticated to Salesforce org 🎉"
             }
         }
 
-        stage('Deploy to Salesforce') {
+         stage('📦 Deploy Metadata') {
             steps {
-                sh 'sfdx force:source:deploy -p force-app/main/default'
+                echo "🚀 Starting metadata deployment..."
+                sh '''
+                sfdx force:source:deploy \
+                  --sourcepath force-app \
+                  --targetusername $SF_USERNAME \
+                  --verbose || {
+                      echo "❌ Deployment failed!"
+                      exit 1
+                  }
+                '''
+                echo "✅ Metadata deployment finished 🎉"
             }
+        }
+    }
+     post {
+        success {
+            echo "🎉 Pipeline completed successfully! 🚩"
+        }
+        failure {
+            echo "💥 Pipeline failed — check above logs..🔝"
         }
     }
 }
