@@ -10,8 +10,9 @@ pipeline {
         stage('🔍 Check Environment') {
             steps {
                 echo "🛠 Checking environment variables..."
-                echo "SF_USERNAME: ${SF_USERNAME}"
-                echo "SF_INSTANCE_URL: ${SF_INSTANCE_URL}"
+                bat 'echo SF_USERNAME: %SF_USERNAME%'
+                bat 'echo SF_INSTANCE_URL: %SF_INSTANCE_URL%'
+                bat 'where sfdx || echo ❌ SFDX CLI not found in PATH'
             }
         }
         
@@ -22,21 +23,27 @@ pipeline {
                     string(credentialsId: 'sf-client-id', variable: 'SF_CLIENT_ID'),
                     file(credentialsId: 'sf-private-key', variable: 'SF_JWT_KEY_FILE')
                 ]) {
-                    sh '''
-                        echo "🔍 Checking credentials..."
-                        echo "Client ID length: ${#SF_CLIENT_ID}"
-                        ls -la "$SF_JWT_KEY_FILE" || echo "❌ Key file not accessible"
+                    bat '''
+                        echo 🔍 Checking credentials...
+                        if exist "%SF_JWT_KEY_FILE%" (
+                            echo ✅ Key file found
+                        ) else (
+                            echo ❌ Key file not accessible
+                            exit /b 1
+                        )
                         
-                        echo "🚀 Starting JWT authentication..."
-                        sfdx auth:jwt:grant \
-                          --client-id "$SF_CLIENT_ID" \
-                          --jwt-key-file "$SF_JWT_KEY_FILE" \
-                          --username "$SF_USERNAME" \
-                          --instance-url "$SF_INSTANCE_URL" \
-                          --set-default-dev-hub || {
-                              echo "❌ Authentication Failed"
-                              exit 1
-                          }
+                        echo 🚀 Starting JWT authentication...
+                        sfdx auth:jwt:grant ^
+                          --client-id "%SF_CLIENT_ID%" ^
+                          --jwt-key-file "%SF_JWT_KEY_FILE%" ^
+                          --username "%SF_USERNAME%" ^
+                          --instance-url "%SF_INSTANCE_URL%" ^
+                          --set-default-dev-hub
+                        
+                        if errorlevel 1 (
+                            echo ❌ Authentication Failed
+                            exit /b 1
+                        )
                     '''
                 }
                 echo "✅ Successfully authenticated to Salesforce org 🎉"
@@ -46,14 +53,16 @@ pipeline {
         stage('📦 Deploy Metadata') {
             steps {
                 echo "🚀 Starting metadata deployment..."
-                sh '''
-                    sfdx force:source:deploy \
-                      --sourcepath force-app \
-                      --targetusername "$SF_USERNAME" \
-                      --verbose || {
-                          echo "❌ Deployment failed!"
-                          exit 1
-                      }
+                bat '''
+                    sfdx force:source:deploy ^
+                      --sourcepath force-app ^
+                      --targetusername "%SF_USERNAME%" ^
+                      --verbose
+                    
+                    if errorlevel 1 (
+                        echo ❌ Deployment failed!
+                        exit /b 1
+                    )
                 '''
                 echo "✅ Metadata deployment finished 🎉"
             }
