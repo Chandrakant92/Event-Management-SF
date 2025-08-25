@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         SF_USERNAME = 'cgawali@yrconsultinginc.org'   // Salesforce username
-        SF_CLIENT_ID = credentials('SF_CLIENT_ID')   // Connected App Consumer Key stored in Jenkins
-        SF_JWT_KEY = credentials('SF_JWT_KEY')       // Private key stored as Secret File in Jenkins
+        SF_CLIENT_ID = credentials('sf-client-id')   // Connected App Consumer Key stored in Jenkins
+        SF_JWT_KEY = credentials('sf-private-key')       // Private key stored as Secret File in Jenkins
         SF_INSTANCE_URL = 'https://login.salesforce.com'
     }
 
