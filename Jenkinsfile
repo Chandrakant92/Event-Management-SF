@@ -54,11 +54,12 @@ pipeline {
             steps {
                 echo "🚀 Starting metadata deployment..."
                 bat '''
-                    sfdx force:source:deploy ^
-                      --sourcepath force-app ^
-                      --targetusername "%SF_USERNAME%" ^
+                     sf project deploy start ^
+                      --source-dir force-app ^
+                      --target-org %SF_USERNAME% ^
+                      --wait 10 ^
                       --verbose
-                    
+
                     if errorlevel 1 (
                         echo ❌ Deployment failed!
                         exit /b 1
