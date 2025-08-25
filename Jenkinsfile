@@ -1,63 +1,75 @@
 pipeline {
     agent any
-
+    
     environment {
-        SF_USERNAME = 'cgawali@yrconsultinginc.org'   // Salesforce username
-        SF_CLIENT_ID = credentials('sf-client-id')   // Connected App Consumer Key stored in Jenkins
-        SF_JWT_KEY = credentials('sf-private-key')       // Private key stored as Secret File in Jenkins
+        SF_USERNAME = 'cgawali@yrconsultinginc.org'
         SF_INSTANCE_URL = 'https://login.salesforce.com'
     }
-
+    
     stages {
         stage('🔍 Check Environment') {
             steps {
                 echo "🛠 Checking environment variables..."
-                sh 'echo \"SF_USERNAME=$SF_USERNAME\"'
-                sh 'echo \"SF_CLIENT_ID=$SF_CLIENT_ID\"'
-                sh 'ls -la $SF_KEY_FILE || echo \"❌ Key file not found\"'
+                echo "SF_USERNAME: ${SF_USERNAME}"
+                echo "SF_INSTANCE_URL: ${SF_INSTANCE_URL}"
             }
         }
-
-         stage('🔐 Authenticate with Salesforce') {
+        
+        stage('🔐 Authenticate with Salesforce') {
             steps {
                 echo "🔑 Authenticating with Salesforce org..."
-                sh '''
-                sfdx auth:jwt:grant \
-                  --client-id $SF_CLIENT_ID \
-                  --jwt-key-file $SF_KEY_FILE \
-                  --username $SF_USERNAME \
-                  --instance-url $SF_INSTANCE \
-                  --set-default-dev-hub || {
-                      echo "❌ Authentication Failed"
-                      exit 1
-                  }
-                '''
+                withCredentials([
+                    string(credentialsId: 'sf-client-id', variable: 'SF_CLIENT_ID'),
+                    file(credentialsId: 'sf-private-key', variable: 'SF_JWT_KEY_FILE')
+                ]) {
+                    sh '''
+                        echo "🔍 Checking credentials..."
+                        echo "Client ID length: ${#SF_CLIENT_ID}"
+                        ls -la "$SF_JWT_KEY_FILE" || echo "❌ Key file not accessible"
+                        
+                        echo "🚀 Starting JWT authentication..."
+                        sfdx auth:jwt:grant \
+                          --client-id "$SF_CLIENT_ID" \
+                          --jwt-key-file "$SF_JWT_KEY_FILE" \
+                          --username "$SF_USERNAME" \
+                          --instance-url "$SF_INSTANCE_URL" \
+                          --set-default-dev-hub || {
+                              echo "❌ Authentication Failed"
+                              exit 1
+                          }
+                    '''
+                }
                 echo "✅ Successfully authenticated to Salesforce org 🎉"
             }
         }
-
-         stage('📦 Deploy Metadata') {
+        
+        stage('📦 Deploy Metadata') {
             steps {
                 echo "🚀 Starting metadata deployment..."
                 sh '''
-                sfdx force:source:deploy \
-                  --sourcepath force-app \
-                  --targetusername $SF_USERNAME \
-                  --verbose || {
-                      echo "❌ Deployment failed!"
-                      exit 1
-                  }
+                    sfdx force:source:deploy \
+                      --sourcepath force-app \
+                      --targetusername "$SF_USERNAME" \
+                      --verbose || {
+                          echo "❌ Deployment failed!"
+                          exit 1
+                      }
                 '''
                 echo "✅ Metadata deployment finished 🎉"
             }
         }
     }
-     post {
+    
+    post {
         success {
-            echo "🎉 Pipeline completed successfully! 🚩"
+            echo "🎉 Pipeline completed successfully! 🚀"
         }
         failure {
-            echo "💥 Pipeline failed — check above logs..🔝"
+            echo "💥 Pipeline failed — check above logs.. 🔝"
+        }
+        always {
+            echo "🧹 Cleaning up workspace..."
+            cleanWs()
         }
     }
 }
