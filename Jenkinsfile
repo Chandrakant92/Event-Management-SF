@@ -58,7 +58,7 @@ pipeline {
                   -Dsonar.projectKey=EventManagement ^
                   -Dsonar.sources=force-app ^
                   -Dsonar.host.url=http://localhost:9000 ^
-                  -Dsonar.login=%SONAR_TOKEN%
+                  -Dsonar.token=%SONAR_TOKEN%
                 '''
                 }
             }
