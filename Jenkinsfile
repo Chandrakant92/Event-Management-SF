@@ -49,7 +49,20 @@ pipeline {
                 echo "✅ Successfully authenticated to Salesforce org 🎉"
             }
         }
-        
+        stage('📊 SonarQube Analysis') {
+            steps {
+                echo "🔍 Running SonarQube Code Analysis..."
+            withCredentials([string(credentialsId: 'SonarScannerToken', variable: 'SONAR_TOKEN')]) {
+                bat '''
+                sonar-scanner ^
+                  -Dsonar.projectKey=EventManagement ^
+                  -Dsonar.sources=force-app ^
+                  -Dsonar.host.url=http://localhost:9000 ^
+                  -Dsonar.login=%SONAR_TOKEN%
+                '''
+                }
+            }
+        }
         stage('📦 Deploy Metadata') {
             steps {
                 echo "🚀 Starting metadata deployment..."
