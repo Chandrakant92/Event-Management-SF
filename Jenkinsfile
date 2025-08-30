@@ -59,8 +59,15 @@ pipeline {
                   -Dsonar.sources=force-app ^
                   -Dsonar.host.url=http://localhost:9000 ^
                   -Dsonar.token=%SONAR_TOKEN%
+
+                   if errorlevel 1 (
+                            echo ❌ Authentication Failed
+                            exit /b 1
+                    )
                 '''
                 }
+                echo "✅ Sonar Scanner Connected Successfully."
+
             }
         }
         stage('📦 Deploy Metadata') {
