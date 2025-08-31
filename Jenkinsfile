@@ -1,6 +1,9 @@
 pipeline {
     agent any
-    
+      tools {
+        // Use the scanner name you gave in Manage Jenkins → Tools
+        SonarQubeScanner 'SonarScanner'
+    }
     environment {
         SF_USERNAME = 'cgawali@yrconsultinginc.org'
         SF_INSTANCE_URL = 'https://login.salesforce.com'
@@ -52,7 +55,7 @@ pipeline {
         stage('📊 SonarQube Analysis') {
             steps {
                 echo "🔍 Running SonarQube Code Analysis..."
-            withCredentials([string(credentialsId: 'SonarScannerToken', variable: 'SONAR_TOKEN')]) {
+            withSonarQubeEnv('MySonarQubeServer') {
                 bat '''
                 sonar-scanner ^
                   -Dsonar.projectKey=EventManagement ^
@@ -61,7 +64,7 @@ pipeline {
                   -Dsonar.token=%SONAR_TOKEN%
 
                    if errorlevel 1 (
-                            echo ❌ Authentication Failed
+                            echo ❌ Sonar Scanner Not Connected
                             exit /b 1
                     )
                 '''
