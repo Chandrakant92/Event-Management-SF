@@ -1,9 +1,6 @@
 pipeline {
     agent any
-      tools {
-        // Use the scanner name you gave in Manage Jenkins → Tools
-        SonarQubeScanner 'SonarScanner'
-    }
+     
     environment {
         SF_USERNAME = 'cgawali@yrconsultinginc.org'
         SF_INSTANCE_URL = 'https://login.salesforce.com'
@@ -55,20 +52,17 @@ pipeline {
         stage('📊 SonarQube Analysis') {
             steps {
                 echo "🔍 Running SonarQube Code Analysis..."
-            withSonarQubeEnv('MySonarQubeServer') {
-                bat '''
-                sonar-scanner ^
-                  -Dsonar.projectKey=EventManagement ^
-                  -Dsonar.sources=force-app ^
-                  -Dsonar.host.url=http://localhost:9000 ^
-                  -Dsonar.token=%SONAR_TOKEN%
-
-                   if errorlevel 1 (
-                            echo ❌ Sonar Scanner Not Connected
-                            exit /b 1
-                    )
-                '''
-                }
+           script {
+            def scannerHome = tool 'SonarQubeScanner' // Configure this in Jenkins Global Tools
+            withSonarQubeEnv('SonarQube') { // Configure SonarQube server in Jenkins
+                bat """
+                    "${scannerHome}\\bin\\sonar-scanner.bat" ^
+                      -Dsonar.projectKey=EventManagement ^
+                      -Dsonar.projectName="Event Management Salesforce" ^
+                      -Dsonar.sources=force-app
+                """
+            }
+        }
                 echo "✅ Sonar Scanner Connected Successfully."
 
             }
