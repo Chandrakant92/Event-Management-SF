@@ -53,8 +53,8 @@ pipeline {
             steps {
                 echo "🔍 Running SonarQube Code Analysis..."
            script {
-            def scannerHome = tool 'SonarQubeScanner' // Configure this in Jenkins Global Tools
-            withSonarQubeEnv('SonarQube') { // Configure SonarQube server in Jenkins
+            def scannerHome = tool 'SonarScanner' // Configure this in Jenkins Global Tools
+            withSonarQubeEnv('SonarQubeLocalhost') { // Configure SonarQube server in Jenkins
                 bat """
                     "${scannerHome}\\bin\\sonar-scanner.bat" ^
                       -Dsonar.projectKey=EventManagement ^
