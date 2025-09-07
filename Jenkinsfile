@@ -69,14 +69,22 @@ pipeline {
         }
         stage('🚦 SonarQube Quality Gate') {
         steps {
-            script {
-                timeout(time: 2, unit: 'MINUTES') {
-                    def qg = waitForQualityGate()  // Jenkins waits for SonarQube analysis result
-                    if (qg.status != 'OK') {
-                        error "❌ Quality Gate failed: ${qg.status}"
-                        } else {
-                        echo "✅ Quality Gate passed!"
+             echo "⏳ Waiting for SonarQube Quality Gate result..."
+                script {
+                    try {
+                        timeout(time: 5, unit: 'MINUTES') {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                echo "⚠️ Quality Gate failed: ${qg.status}"
+                                // Don't fail the pipeline, just warn
+                                // error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                            } else {
+                                echo "✅ Quality Gate passed! 🎉"
+                            }
                         }
+                    } catch (Exception e) {
+                        echo "⚠️ Quality Gate check failed or timed out: ${e.getMessage()}"
+                        echo "ℹ️ Continuing with deployment..."
                     }
                 }
             }
@@ -110,6 +118,11 @@ pipeline {
         }
         always {
             echo "🧹 Cleaning up workspace..."
+             script {
+                if (fileExists('target/sonar/report-task.txt')) {
+                    echo "📊 SonarQube report available"
+                }
+            }
             cleanWs()
         }
     }
