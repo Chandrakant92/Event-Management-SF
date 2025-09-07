@@ -67,6 +67,20 @@ pipeline {
 
             }
         }
+        stage('🚦 SonarQube Quality Gate') {
+        steps {
+            script {
+                timeout(time: 2, unit: 'MINUTES') {
+                    def qg = waitForQualityGate()  // Jenkins waits for SonarQube analysis result
+                    if (qg.status != 'OK') {
+                        error "❌ Quality Gate failed: ${qg.status}"
+                        } else {
+                        echo "✅ Quality Gate passed!"
+                        }
+                    }
+                }
+            }
+        }
         stage('📦 Deploy Metadata') {
             steps {
                 echo "🚀 Starting metadata deployment..."
