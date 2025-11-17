@@ -70,35 +70,112 @@ pipeline {
 
             }
         }
+       
         stage('🚦 SonarQube Quality Gate') {
-        steps {
-             echo "⏳ Waiting for SonarQube Quality Gate result..."
-                script {
-                     bat 'type sonar\\report-task.txt'
-                    try {
-                        timeout(time: 5, unit: 'MINUTES') {
-                            def qg = waitForQualityGate()
-                             
-                               echo "📊 Full Quality Gate Object: ${qg}"
-                               echo "📊 Status: ${qg.status}"
-                               echo "📊 All properties: ${qg.properties}"
-                               
-                            if (qg.status != 'OK') {
-                                echo "⚠️ Quality Gate failed: ${qg.status}"
-                                // Don't fail the pipeline, just warn
-                                 error "Pipeline aborted due to quality gate failure: ${qg.status}"
-                            } else {
-                                echo "✅ Quality Gate passed! 🎉 "
-                                echo "ℹ️ Continuing with deployment...!!"
-                            }
+    steps {
+        echo "⏳ Checking SonarQube Quality Gate via API..."
+        script {
+            // Read the report file to get project details
+            def reportPath = 'sonar\\report-task.txt'
+            def props = readProperties file: reportPath
+            def serverUrl = props['serverUrl']
+            def projectKey = props['projectKey']
+            def ceTaskUrl = props['ceTaskUrl']
+            
+            echo "🔗 Server: ${serverUrl}"
+            echo "📦 Project: ${projectKey}"
+            echo "🔍 Task URL: ${ceTaskUrl}"
+            
+            // Wait for SonarQube to finish analysis
+            echo "⏳ Waiting for analysis to complete..."
+            sleep(time: 20, unit: 'SECONDS')
+            
+            // Check Quality Gate status using API
+            withCredentials([string(credentialsId: 'SonarScannerToken', variable: 'SONAR_TOKEN')]) {
+                
+                // First verify the CE task completed
+                def taskStatus = bat(
+                    script: """
+                        @echo off
+                        curl -s -u %SONAR_TOKEN%: "${ceTaskUrl}"
+                    """,
+                    returnStdout: true
+                ).trim()
+                
+                if (!taskStatus.contains('"status":"SUCCESS"')) {
+                    error "❌ SonarQube analysis task failed or is still running"
+                }
+                
+                echo "✅ Analysis task completed"
+                
+                // Now check Quality Gate
+                def qgApiUrl = "${serverUrl}/api/qualitygates/project_status?projectKey=${projectKey}"
+                echo "🔍 Checking Quality Gate: ${qgApiUrl}"
+                
+                def qgStatus = bat(
+                    script: """
+                        @echo off
+                        curl -s -u %SONAR_TOKEN%: "${qgApiUrl}"
+                    """,
+                    returnStdout: true
+                ).trim()
+                
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "📊 Quality Gate Response:"
+                echo "${qgStatus}"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                
+                // Check the status
+                if (qgStatus.contains('"status":"ERROR"')) {
+                    echo "❌ QUALITY GATE FAILED!"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    
+                    // Extract failure details
+                    if (qgStatus.contains('"metricKey":"new_violations"')) {
+                        def matcher = (qgStatus =~ /"actualValue":"(\d+)"/)
+                        if (matcher.find()) {
+                            echo "❌ New Issues Found: ${matcher.group(1)}"
+                            echo "   Required: 0 new issues"
                         }
-                    } catch (Exception e) {
-                        echo "⚠️ Quality Gate check failed or timed out: ${e.getMessage()}"
-                       // echo "ℹ️ Continuing with deployment..."
                     }
+                    
+                    if (qgStatus.contains('"metricKey":"new_coverage"')) {
+                        echo "⚠️  Code coverage check also evaluated"
+                    }
+                    
+                    if (qgStatus.contains('"metricKey":"new_duplicated_lines_density"')) {
+                        echo "⚠️  Code duplication check also evaluated"
+                    }
+                    
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    echo "🔗 View details: ${serverUrl}/dashboard?id=${projectKey}"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    
+                    error "❌ PIPELINE STOPPED: Quality Gate Failed! Fix the issues in SonarQube before deploying."
+                    
+                } else if (qgStatus.contains('"status":"OK"')) {
+                    echo "✅ QUALITY GATE PASSED! 🎉"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    echo "✓ No new code violations"
+                    echo "✓ Code quality standards met"
+                    echo "✓ Safe to deploy"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    
+                } else if (qgStatus.contains('"status":"WARN"')) {
+                    echo "⚠️  QUALITY GATE WARNING"
+                    echo "Some metrics are in warning state but within acceptable limits"
+                    echo "🔗 Review: ${serverUrl}/dashboard?id=${projectKey}"
+                    
+                } else {
+                    echo "⚠️  WARNING: Could not parse Quality Gate status"
+                    echo "Response received but status unclear"
+                    echo "🔗 Check manually: ${serverUrl}/dashboard?id=${projectKey}"
+                    error "Unable to determine Quality Gate status - blocking deployment for safety"
                 }
             }
         }
+    }
+}
         stage('📦 Deploy Metadata') {
             steps {
                 echo "🚀 Starting metadata deployment..."
@@ -119,21 +196,5 @@ pipeline {
         }
     }
     
-    post {
-        success {
-            echo "🎉 Pipeline completed successfully! 🚀"
-        }
-        failure {
-            echo "💥 Pipeline failed — check above logs.. 🔝"
-        }
-        always {
-            echo "🧹 Cleaning up workspace..."
-             script {
-                if (fileExists('target/sonar/report-task.txt')) {
-                    echo "📊 SonarQube report available"
-                }
-            }
-            cleanWs()
-        }
-    }
+    // Add here
 }
