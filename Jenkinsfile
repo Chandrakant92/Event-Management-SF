@@ -83,7 +83,7 @@ pipeline {
                                  error "Pipeline aborted due to quality gate failure: ${qg.status}"
                             } else {
                                 echo "✅ Quality Gate passed! 🎉"
-                                echo "ℹ️ Continuing with deployment..."
+                                echo "ℹ️ Continuing with deployment...!!"
                             }
                         }
                     } catch (Exception e) {
