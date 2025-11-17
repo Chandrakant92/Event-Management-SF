@@ -51,7 +51,7 @@ pipeline {
         }
         stage('📊 SonarQube Analysis') {
             steps {
-                echo "🔍 Running SonarQube Code Analysis..."
+                echo "🔍 Running SonarQube Code Analysis."
            script {
             def scannerHome = tool 'SonarScanner' // Configure this in Jenkins Global Tools
             withSonarQubeEnv('SonarQubeLocalhost') { // Configure SonarQube server in Jenkins
@@ -61,7 +61,7 @@ pipeline {
                       -Dsonar.projectName="Event Management Salesforce" ^
                       -Dsonar.sources=force-app ^
                       -Dsonar.working.directory=sonar 
-                                      """
+                 """
                 }
                 echo "🔎 Checking generated task file..."
                 bat 'type sonar\\report-task.txt'
@@ -80,14 +80,15 @@ pipeline {
                             if (qg.status != 'OK') {
                                 echo "⚠️ Quality Gate failed: ${qg.status}"
                                 // Don't fail the pipeline, just warn
-                                // error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                                 error "Pipeline aborted due to quality gate failure: ${qg.status}"
                             } else {
                                 echo "✅ Quality Gate passed! 🎉"
+                                echo "ℹ️ Continuing with deployment..."
                             }
                         }
                     } catch (Exception e) {
                         echo "⚠️ Quality Gate check failed or timed out: ${e.getMessage()}"
-                        echo "ℹ️ Continuing with deployment..."
+                       // echo "ℹ️ Continuing with deployment..."
                     }
                 }
             }
