@@ -74,15 +74,21 @@ pipeline {
         steps {
              echo "⏳ Waiting for SonarQube Quality Gate result..."
                 script {
+                     bat 'type sonar\\report-task.txt'
                     try {
                         timeout(time: 5, unit: 'MINUTES') {
                             def qg = waitForQualityGate()
+                             
+                               echo "📊 Full Quality Gate Object: ${qg}"
+                               echo "📊 Status: ${qg.status}"
+                               echo "📊 All properties: ${qg.properties}"
+                               
                             if (qg.status != 'OK') {
                                 echo "⚠️ Quality Gate failed: ${qg.status}"
                                 // Don't fail the pipeline, just warn
                                  error "Pipeline aborted due to quality gate failure: ${qg.status}"
                             } else {
-                                echo "✅ Quality Gate passed! 🎉"
+                                echo "✅ Quality Gate passed! 🎉 "
                                 echo "ℹ️ Continuing with deployment...!!"
                             }
                         }
