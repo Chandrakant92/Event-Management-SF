@@ -1,0 +1,6 @@
+projectKey=EventManagement
+serverUrl=http://localhost:9000
+serverVersion=25.8.0.112029
+dashboardUrl=http://localhost:9000/dashboard?id=EventManagement
+ceTaskId=5066baff-be97-42f7-a78c-ed3680f481e3
+ceTaskUrl=http://localhost:9000/api/ce/task?id=5066baff-be97-42f7-a78c-ed3680f481e3

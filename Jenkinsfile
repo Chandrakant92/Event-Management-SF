@@ -59,10 +59,13 @@ pipeline {
                     "${scannerHome}\\bin\\sonar-scanner.bat" ^
                       -Dsonar.projectKey=EventManagement ^
                       -Dsonar.projectName="Event Management Salesforce" ^
-                      -Dsonar.sources=force-app
-                """
+                      -Dsonar.sources=force-app ^
+                      -Dsonar.working.directory=sonar 
+                                      """
+                }
+                echo "🔎 Checking generated task file..."
+                bat 'type sonar\\report-task.txt'
             }
-        }
                 echo "✅ Sonar Scanner Connected Successfully."
 
             }

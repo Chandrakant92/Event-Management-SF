@@ -1,7 +1,7 @@
 {
-  "orgName": "Demo company",
+  "orgName": "Event Management QA",
   "edition": "Developer",
-  "features": ["EnableSetPasswordInApi"],
+  "features": ["AuthorApex"],
   "settings": {
     "lightningExperienceSettings": {
       "enableS1DesktopEnabled": true
