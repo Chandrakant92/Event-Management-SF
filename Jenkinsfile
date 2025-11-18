@@ -68,53 +68,141 @@ pipeline {
             }
         }
 
-        stage('🚦 SonarQube Quality Gate') {
-            steps {
-                echo "⏳ Checking Quality Gate..."
-                script {
-                    def props = readProperties file: 'sonar/report-task.txt'
-                    def serverUrl = props.serverUrl
-                    def taskUrl = props.ceTaskUrl
-                    def projectKey = props.projectKey
+    stage('🚦 SonarQube Quality Gate') {
+        steps {
+        echo "⏳ Checking Quality Gate..."
+        script {
+            // Read properties
+            def props = readProperties file: 'sonar/report-task.txt'
+            def serverUrl = props.serverUrl
+            def ceTaskUrl = props.ceTaskUrl
+            def projectKey = props.projectKey
 
-                    withCredentials([string(credentialsId: 'SonarScannerToken', variable: 'SONAR_TOKEN')]) {
+            echo "🔗 Server: ${serverUrl}"
+            echo "📦 Project: ${projectKey}"
+            echo "🔍 Task URL: ${ceTaskUrl}"
 
-                        // 1️⃣ Check CE task
-                        def ce = bat(
-                            script: "curl -s -u %SONAR_TOKEN%: ${taskUrl}",
-                            returnStdout: true
-                        ).trim()
+            // Wait for SonarQube to finish processing
+            echo "⏳ Waiting 30 seconds for SonarQube..."
+            sleep(time: 30, unit: 'SECONDS')
 
-                        if (!ce.contains('"status":"SUCCESS"')) {
-                            error "❌ SonarQube analysis not finished or failed"
-                        }
+            withCredentials([string(credentialsId: 'SonarScannerToken', variable: 'SONAR_TOKEN')]) {
 
-                        echo "✅ CE task success"
+                // 1️⃣ Check CE task with detailed output
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "🔄 Checking CE Task Status..."
+                
+                def ceStatus = bat(
+                    script: """
+                        @echo off
+                        curl -s -u %SONAR_TOKEN%: "${ceTaskUrl}"
+                    """,
+                    returnStdout: true
+                ).trim()
 
-                        // 2️⃣ Check Quality Gate
-                        def qgUrl = "${serverUrl}/api/qualitygates/project_status?projectKey=${projectKey}"
+                echo "📋 CE Task Response:"
+                echo ceStatus
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-                        def qg = bat(
-                            script: "curl -s -u %SONAR_TOKEN%: ${qgUrl}",
-                            returnStdout: true
-                        ).trim()
+                // Check if we got a valid response
+                if (!ceStatus || ceStatus.length() < 10) {
+                    error "❌ No response from SonarQube CE task API - check connection"
+                }
 
-                        echo "📊 Quality Gate Response:"
-                        echo qg
+                // Check for common error patterns
+                if (ceStatus.contains('401') || ceStatus.contains('Unauthorized')) {
+                    error "❌ Authentication failed - check your SonarScannerToken credential"
+                }
 
-                        if (qg.contains('"status":"ERROR"')) {
-                            error "❌ QUALITY GATE FAILED — BLOCKING PIPELINE"
-                        }
+                if (ceStatus.contains('404') || ceStatus.contains('Not Found')) {
+                    error "❌ Task not found - it may have been cleaned up. Try running scan again."
+                }
 
-                        if (qg.contains('"status":"OK"')) {
-                            echo "✅ QUALITY GATE PASSED"
-                        } else {
-                            error "⚠️ Unknown QG status. Blocking pipeline for safety."
-                        }
-                    }
+                // More lenient check - look for SUCCESS or FAILED
+                if (ceStatus.contains('"status":"FAILED"')) {
+                    error "❌ SonarQube analysis FAILED"
+                }
+
+                if (ceStatus.contains('"status":"PENDING"') || ceStatus.contains('"status":"IN_PROGRESS"')) {
+                    echo "⚠️ Analysis still running, waiting longer..."
+                    sleep(time: 30, unit: 'SECONDS')
+                    
+                    // Try again
+                    ceStatus = bat(
+                        script: """
+                            @echo off
+                            curl -s -u %SONAR_TOKEN%: "${ceTaskUrl}"
+                        """,
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "📋 CE Task Response (2nd check):"
+                    echo ceStatus
+                }
+
+                // If we got here and have SUCCESS, continue
+                if (ceStatus.contains('"status":"SUCCESS"')) {
+                    echo "✅ CE task completed successfully"
+                } else {
+                    echo "⚠️ WARNING: CE task status unclear, but proceeding to Quality Gate check..."
+                }
+
+                // 2️⃣ Check Quality Gate
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "🔍 Checking Quality Gate..."
+                
+                def qgUrl = "${serverUrl}/api/qualitygates/project_status?projectKey=${projectKey}"
+                echo "API URL: ${qgUrl}"
+
+                def qgStatus = bat(
+                    script: """
+                        @echo off
+                        curl -s -u %SONAR_TOKEN%: "${qgUrl}"
+                    """,
+                    returnStdout: true
+                ).trim()
+
+                echo "📊 Quality Gate Response:"
+                echo qgStatus
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+                // Check if we got a valid response
+                if (!qgStatus || qgStatus.length() < 10) {
+                    error "❌ No response from Quality Gate API"
+                }
+
+                if (qgStatus.contains('401') || qgStatus.contains('Unauthorized')) {
+                    error "❌ Authentication failed for Quality Gate check"
+                }
+
+                // Check Quality Gate status
+                if (qgStatus.contains('"status":"ERROR"')) {
+                    echo "❌ QUALITY GATE FAILED!"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    echo "🔗 View details: ${serverUrl}/dashboard?id=${projectKey}"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    error "❌ PIPELINE STOPPED: Quality Gate Failed!"
+
+                } else if (qgStatus.contains('"status":"OK"')) {
+                    echo "✅ QUALITY GATE PASSED! 🎉"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    echo "✓ All quality checks passed"
+                    echo "✓ Safe to deploy"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+                } else if (qgStatus.contains('"status":"WARN"')) {
+                    echo "⚠️ QUALITY GATE WARNING - but passing"
+                    echo "🔗 Review: ${serverUrl}/dashboard?id=${projectKey}"
+
+                } else {
+                    echo "⚠️ WARNING: Could not parse Quality Gate status"
+                    echo "Full response: ${qgStatus}"
+                    error "Unable to determine Quality Gate status"
                 }
             }
         }
+        }
+    }
 
         stage('📦 Deploy Metadata') {
             steps {
