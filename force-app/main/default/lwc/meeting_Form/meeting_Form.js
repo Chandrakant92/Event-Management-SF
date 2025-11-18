@@ -8,7 +8,9 @@ export default class Meeting_Form extends LightningElement {
   }
 }
 
-function testBug() {
-  return true;
-  console.log("This line will never execute");
-}
+
+// Test code to failed the sonar scanner check
+// function testBug() {
+//   return true;
+//   console.log("This line will never execute");
+// }

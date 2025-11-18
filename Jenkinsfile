@@ -13,13 +13,13 @@ pipeline {
                 echo "🛠 Checking environment variables..."
                 bat 'echo SF_USERNAME: %SF_USERNAME%'
                 bat 'echo SF_INSTANCE_URL: %SF_INSTANCE_URL%'
-                bat 'where sfdx || echo ❌ SFDX CLI not found in PATH'
+                bat 'where sfdx'
             }
         }
         
         stage('🔐 Authenticate with Salesforce') {
             steps {
-                echo "🔑 Authenticating with Salesforce org..."
+                //echo "🔑 Authenticating with Salesforce org..."
                 withCredentials([
                     string(credentialsId: 'sf-client-id', variable: 'SF_CLIENT_ID'),
                     file(credentialsId: 'sf-private-key', variable: 'SF_JWT_KEY_FILE')
@@ -31,7 +31,7 @@ pipeline {
                             exit /b 1
                         )
 
-                        echo 🚀 Authenticating...
+                        echo 🔑 Authenticating...
                         sfdx auth:jwt:grant ^
                           --client-id "%SF_CLIENT_ID%" ^
                           --jwt-key-file "%SF_JWT_KEY_FILE%" ^
@@ -62,7 +62,7 @@ pipeline {
                         """
                     }
 
-                    echo "🔎 Print generated task file:"
+                    echo "Print generated task file:"
                     bat 'type sonar\\report-task.txt'
                 }
             }
@@ -83,9 +83,7 @@ pipeline {
 
             sleep(time: 60, unit: 'SECONDS')
 
-            withCredentials([string(credentialsId: 'SonarScannerToken', variable: 'SONAR_TOKEN')]) {
-
-              
+            withCredentials([string(credentialsId: 'SonarScannerToken', variable: 'SONAR_TOKEN')]) {             
                 
                 def ceStatus = bat(
                     script: """
@@ -120,7 +118,7 @@ pipeline {
 
                 // If we got here and have SUCCESS, continue
                 if (ceStatus.contains('"status":"SUCCESS"')) {
-                    echo "✅ CE task completed successfully"
+                    echo "✅ SonarQube analysis completed successfully"
                 } else {
                     echo "⚠️ WARNING: CE task status unclear, but proceeding to Quality Gate check..."
                 }
@@ -153,14 +151,12 @@ pipeline {
                     echo "❌ QUALITY GATE FAILED!"
                     echo "🔗 View details: ${serverUrl}/dashboard?id=${projectKey}"
                     error "❌ PIPELINE STOPPED: Quality Gate Failed!"
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 
                 } else if (qgStatus.contains('"status":"OK"')) {
                     echo "✅ QUALITY GATE PASSED! 🎉"
                     echo "✓ All quality checks passed"
                     echo "✓ Safe to deploy"
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
                 } else if (qgStatus.contains('"status":"WARN"')) {
                     echo "⚠️ QUALITY GATE WARNING - but passing"
