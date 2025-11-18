@@ -78,19 +78,14 @@ pipeline {
             def ceTaskUrl = props.ceTaskUrl
             def projectKey = props.projectKey
 
-            echo "🔗 Server: ${serverUrl}"
-            echo "📦 Project: ${projectKey}"
-            echo "🔍 Task URL: ${ceTaskUrl}"
+          
+            // echo " Task URL: ${ceTaskUrl}"
 
-            // Wait for SonarQube to finish processing
-            echo "⏳ Waiting 30 seconds for SonarQube..."
-            sleep(time: 30, unit: 'SECONDS')
+            sleep(time: 60, unit: 'SECONDS')
 
             withCredentials([string(credentialsId: 'SonarScannerToken', variable: 'SONAR_TOKEN')]) {
 
-                // 1️⃣ Check CE task with detailed output
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "🔄 Checking CE Task Status..."
+              
                 
                 def ceStatus = bat(
                     script: """
@@ -100,45 +95,28 @@ pipeline {
                     returnStdout: true
                 ).trim()
 
-                echo "📋 CE Task Response:"
-                echo ceStatus
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-                // Check if we got a valid response
-                if (!ceStatus || ceStatus.length() < 10) {
-                    error "❌ No response from SonarQube CE task API - check connection"
-                }
-
-                // Check for common error patterns
-                if (ceStatus.contains('401') || ceStatus.contains('Unauthorized')) {
-                    error "❌ Authentication failed - check your SonarScannerToken credential"
-                }
-
-                if (ceStatus.contains('404') || ceStatus.contains('Not Found')) {
-                    error "❌ Task not found - it may have been cleaned up. Try running scan again."
-                }
-
+              
                 // More lenient check - look for SUCCESS or FAILED
                 if (ceStatus.contains('"status":"FAILED"')) {
                     error "❌ SonarQube analysis FAILED"
                 }
 
-                if (ceStatus.contains('"status":"PENDING"') || ceStatus.contains('"status":"IN_PROGRESS"')) {
-                    echo "⚠️ Analysis still running, waiting longer..."
-                    sleep(time: 30, unit: 'SECONDS')
+                // if (ceStatus.contains('"status":"PENDING"') || ceStatus.contains('"status":"IN_PROGRESS"')) {
+                //     echo "⚠️ Analysis still running, waiting longer..."
+                //     sleep(time: 30, unit: 'SECONDS')
                     
-                    // Try again
-                    ceStatus = bat(
-                        script: """
-                            @echo off
-                            curl -s -u %SONAR_TOKEN%: "${ceTaskUrl}"
-                        """,
-                        returnStdout: true
-                    ).trim()
+                //     // Try again
+                //     ceStatus = bat(
+                //         script: """
+                //             @echo off
+                //             curl -s -u %SONAR_TOKEN%: "${ceTaskUrl}"
+                //         """,
+                //         returnStdout: true
+                //     ).trim()
                     
-                    echo "📋 CE Task Response (2nd check):"
-                    echo ceStatus
-                }
+                //     echo "📋 CE Task Response (2nd check):"
+                //     echo ceStatus
+                // }
 
                 // If we got here and have SUCCESS, continue
                 if (ceStatus.contains('"status":"SUCCESS"')) {
@@ -146,10 +124,6 @@ pipeline {
                 } else {
                     echo "⚠️ WARNING: CE task status unclear, but proceeding to Quality Gate check..."
                 }
-
-                // 2️⃣ Check Quality Gate
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "🔍 Checking Quality Gate..."
                 
                 def qgUrl = "${serverUrl}/api/qualitygates/project_status?projectKey=${projectKey}"
                 echo "API URL: ${qgUrl}"
@@ -162,9 +136,8 @@ pipeline {
                     returnStdout: true
                 ).trim()
 
-                echo "📊 Quality Gate Response:"
-                echo qgStatus
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                // echo "📊 Quality Gate Response:"
+                // echo qgStatus
 
                 // Check if we got a valid response
                 if (!qgStatus || qgStatus.length() < 10) {
@@ -178,14 +151,13 @@ pipeline {
                 // Check Quality Gate status
                 if (qgStatus.contains('"status":"ERROR"')) {
                     echo "❌ QUALITY GATE FAILED!"
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                     echo "🔗 View details: ${serverUrl}/dashboard?id=${projectKey}"
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                     error "❌ PIPELINE STOPPED: Quality Gate Failed!"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
 
                 } else if (qgStatus.contains('"status":"OK"')) {
                     echo "✅ QUALITY GATE PASSED! 🎉"
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                     echo "✓ All quality checks passed"
                     echo "✓ Safe to deploy"
                     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -222,10 +194,19 @@ pipeline {
     }
 
     post {
-        success { echo "🎉 Pipeline Completed" }
-        failure { echo "💥 Pipeline Failed" }
+        success {
+            echo "🎉 Pipeline completed successfully! 🚀"
+        }
+        failure {
+            echo "💥 Pipeline failed — check above logs."
+        }
         always {
-            echo "🧹 Cleaning workspace..."
+            echo "🧹 Cleaning up workspace..."
+            script {
+                if (fileExists('sonar/report-task.txt')) {
+                    echo "📊 SonarQube report available (sonar/report-task.txt)"
+                }
+            }
             cleanWs()
         }
     }
